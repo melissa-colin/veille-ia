@@ -108,15 +108,17 @@ behaviour means you still get the day's brief when you power on.
 
 ## Cost (transparent)
 
-With the default **`claude-code`** engine, the only paid piece is the voice:
+The default stack runs at **$0/mo**: Claude **Max** for text, **edge-tts** (free
+Microsoft neural voices) for the podcast, HTML→PNG carousel, local scheduler.
 
-| | Lean (~30 min podcast) | Full 1 h |
+| TTS provider (`podcast.tts.provider`) | Cost | Quality |
 |---|---|---|
-| ElevenLabs | Pro ~$99/mo | Scale ~$330/mo |
-| Text (Claude Max) · carousel · scheduler | $0 | $0 |
-| **Total** | **~$99/mo** | **~$330/mo** |
+| `edge` (default) | **$0** — free neural FR voices, no key | very good |
+| `elevenlabs` | ~$99/mo (30 min) … ~$330/mo (1 h) | premium |
 
-Duration is one number in `pipeline/config.json` (`podcast.targetMinutes`).
+Note: ElevenLabs' free tier (10k credits/mo) **cannot** sustain a daily ~30-min
+podcast (~14k credits/run), which is why `edge` is the default. Duration is one
+number in `pipeline/config.json` (`podcast.targetMinutes`).
 
 ## Tech stack
 Node 20 (ESM, no deps) · Anthropic Messages API + web search · ElevenLabs TTS ·

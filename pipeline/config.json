@@ -45,7 +45,9 @@
     "targetMinutes": 30,
     "comment": "30 min ≈ ElevenLabs Pro (~$99/mo). Set 60 for full hour (≈ Scale ~$330/mo).",
     "tts": {
-      "provider": "elevenlabs",
+      "provider": "edge",
+      "_providerComment": "edge = free neural FR voices (Microsoft, no key). elevenlabs = premium (paid).",
+      "edgeVoice": "fr-FR-HenriNeural",
       "modelId": "eleven_flash_v2_5",
       "voiceId": "JBFqnCBsd6RMkjVDRZzb",
       "secondVoiceId": "",

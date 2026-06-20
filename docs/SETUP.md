@@ -9,8 +9,11 @@ your **Claude Max** plan, so the text work costs nothing per run. Follow the *Lo
   at least once so its auth is stored).
 - CLIs: `rsvg-convert` (`librsvg2-bin`), `ffmpeg`, `rclone`
   - Ubuntu: `sudo apt install librsvg2-bin ffmpeg rclone`
-- For audio: an **ElevenLabs** key. For Drive delivery in the cloud path: a **Google
-  Cloud service account**. (No Anthropic API key needed for the default engine.)
+- Free TTS (default): `pip install --user edge-tts` (Microsoft neural voices, no key).
+  Invoked as `python3 -m edge_tts`, so no PATH setup needed.
+- Optional premium TTS: an **ElevenLabs** key (set `podcast.tts.provider` to
+  `elevenlabs`). Optional cloud delivery: a **Google Cloud service account**.
+  (No Anthropic API key needed for the default `claude-code` engine.)
 
 ## 1. Local run (Claude Max engine)
 ```bash

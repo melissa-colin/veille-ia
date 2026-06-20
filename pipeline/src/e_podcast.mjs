@@ -1,6 +1,6 @@
 // Stage E — write the French podcast script, synthesize it with ElevenLabs
 // (chunked, with prosody continuity), and concat to a single mp3 via ffmpeg.
-import { writeFileSync, mkdirSync, rmSync, readdirSync } from "node:fs";
+import { writeFileSync, mkdirSync, rmSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { makeBrain } from "./lib/brain.mjs";
@@ -47,6 +47,7 @@ export function chunkScript(text, maxChars) {
 
 export async function synthesize({ cfg, scriptText, outPath }) {
   const t = cfg.podcast.tts;
+  if ((t.provider || "elevenlabs") === "edge") return synthesizeEdge({ cfg, scriptText, outPath });
   if (!cfg.secrets.elevenlabs) {
     log.warn("no ELEVENLABS_API_KEY — skipping TTS (script still delivered)");
     return { ok: false, durationSec: null, reason: "no-key" };
@@ -91,6 +92,32 @@ export async function synthesize({ cfg, scriptText, outPath }) {
     const durationSec = await probeDuration(outPath);
     log.ok(`podcast.mp3 written (${durationSec ? Math.round(durationSec / 60) + " min" : "?"})`);
     return { ok: true, durationSec, chunks: chunks.length };
+  } finally {
+    rmSync(work, { recursive: true, force: true });
+  }
+}
+
+// Free neural TTS via Microsoft Edge voices (no key). edge-tts handles long
+// text itself; we invoke it as a Python module so it works regardless of PATH.
+async function synthesizeEdge({ cfg, scriptText, outPath }) {
+  const t = cfg.podcast.tts;
+  const voice = t.edgeVoice || "fr-FR-HenriNeural";
+  const work = join(tmpdir(), `veille-edge-${Date.now()}`);
+  mkdirSync(work, { recursive: true });
+  const txt = join(work, "script.txt");
+  writeFileSync(txt, scriptText, "utf8");
+  log.info(`synthesizing with edge-tts (${voice})`);
+  try {
+    const r = await sh("python3", ["-m", "edge_tts", "--voice", voice, "--file", txt, "--write-media", outPath], {
+      env: { PYTHONIOENCODING: "utf-8" },
+    });
+    if (r.code !== 0 || !existsSync(outPath)) {
+      log.warn(`edge-tts failed (install: pip install --user edge-tts): ${r.stderr.slice(-200)}`);
+      return { ok: false, durationSec: null, reason: "edge-failed" };
+    }
+    const durationSec = await probeDuration(outPath);
+    log.ok(`podcast.mp3 written via edge-tts (${durationSec ? Math.round(durationSec / 60) + " min" : "?"})`);
+    return { ok: true, durationSec, provider: "edge" };
   } finally {
     rmSync(work, { recursive: true, force: true });
   }
