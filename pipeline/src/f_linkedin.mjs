@@ -2,7 +2,7 @@
 // post, and render a carousel (SVG -> PNG). `--demo` renders sample slides with
 // no API call so you can eyeball the design.
 import { join } from "node:path";
-import { makeClient } from "./lib/anthropic.mjs";
+import { makeBrain } from "./lib/brain.mjs";
 import { logger } from "./lib/log.mjs";
 import { writeText } from "./lib/util.mjs";
 import { renderCarousel } from "./lib/carousel.mjs";
@@ -13,7 +13,7 @@ const log = logger("linkedin");
 const BRAND = "@melissacolin · AI research notes";
 
 export async function linkedin({ cfg, date, brief, postPath, carouselDir, client }) {
-  const ai = client || makeClient(cfg.secrets.anthropic);
+  const ai = client || makeBrain(cfg);
   const { data } = await ai.json({
     system: linkedinSystem(),
     prompt: linkedinPrompt({ date, brief }),

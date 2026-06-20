@@ -117,6 +117,25 @@ export function verifyPrompt({ claim, sourceUrl, sourceText }) {
   ].join("\n");
 }
 
+// ---- Stage C (batched): verify several claims in one call ----------------
+export function verifyBatchPrompt({ claims }) {
+  // claims: [{id, text, source_url, source_excerpt}]
+  const blocks = claims
+    .map(
+      (c, i) =>
+        `### CLAIM ${c.id}\nassertion: ${c.text}\nsource: ${c.source_url}\nsource_text:\n"""\n${c.source_excerpt || "(could not fetch source text)"}\n"""`
+    )
+    .join("\n\n");
+  return [
+    "Fact-check EACH claim below strictly against ITS OWN source_text only. No outside knowledge.",
+    'Return JSON: {"verdicts": [{"id": string, "verdict": "supported"|"unsupported"|"unclear", "quote": string, "note": string}]}',
+    "- quote: short verbatim span from that claim's source_text, or \"\" if none.",
+    "- 'unclear' if the source text is missing or ambiguous.",
+    "",
+    blocks,
+  ].join("\n");
+}
+
 // ---- Stage E: podcast script ---------------------------------------------
 export function podcastSystem({ targetMinutes }) {
   return [

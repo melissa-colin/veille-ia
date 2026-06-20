@@ -2,7 +2,7 @@
 // whole out tree to Google Drive (rclone service account, or a locally-synced
 // Drive mirror for dev). Importable as publish(); runnable with --self-test.
 import { existsSync, writeFileSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { loadConfig, resolveDate } from "./lib/config.mjs";
 import { bundlePaths } from "./lib/paths.mjs";
@@ -37,10 +37,14 @@ export async function publish({ cfg, date, items = [], durationSec = null, error
   return { delivered, manifest, outRoot };
 }
 
-// Try local Drive mirror first (fast dev path), then rclone (CI path).
+// Prefer the synced Drive mirror (local engine: runs on the PC, ~/gdrive is the
+// synced folder — writing there feeds the GNOME extension AND syncs up to Drive,
+// so no service account is needed). Fall back to rclone (cloud/API path).
 async function deliver(cfg, outRoot) {
   const mirror = cfg.delivery.localMirror;
-  if (mirror && existsSync(mirror)) {
+  const mirrorParent = mirror && dirname(mirror);
+  if (mirror && (existsSync(mirror) || (mirrorParent && existsSync(mirrorParent)))) {
+    mkdirSync(mirror, { recursive: true });
     copyInto(`${outRoot}/.`, mirror);
     log.ok(`copied bundle into synced Drive mirror: ${mirror}`);
     return true;

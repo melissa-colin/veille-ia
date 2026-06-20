@@ -40,6 +40,7 @@ export function loadConfig() {
     outDir: process.env.VEILLE_OUT_DIR || join(REPO_ROOT, "out"),
   };
   cfg.delivery.localMirror = expandHome(cfg.delivery.localMirror);
+  if (process.env.VEILLE_ENGINE) cfg.engine = process.env.VEILLE_ENGINE; // CI can force "api"
 
   cfg.secrets = {
     anthropic: process.env.ANTHROPIC_API_KEY || "",

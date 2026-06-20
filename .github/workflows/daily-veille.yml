@@ -34,6 +34,7 @@ jobs:
 
       - name: Run veille pipeline
         env:
+          VEILLE_ENGINE: api # cloud runners can't use the Max plan; force the API engine
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           GDRIVE_SA_JSON: ${{ secrets.GDRIVE_SA_JSON }}

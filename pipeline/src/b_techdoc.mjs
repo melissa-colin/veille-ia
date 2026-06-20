@@ -1,17 +1,17 @@
 // Stage B — turn each curated item into a deep technical section (with the
 // atomic claims that Stage C will verify).
-import { makeClient } from "./lib/anthropic.mjs";
+import { makeBrain, engineConcurrency } from "./lib/brain.mjs";
+import { mapLimit } from "./lib/util.mjs";
 import { logger } from "./lib/log.mjs";
 import { techdocSystem, techdocPrompt } from "./prompts.mjs";
 
 const log = logger("techdoc");
 
 export async function techdoc({ cfg, date, items, client }) {
-  const ai = client || makeClient(cfg.secrets.anthropic);
+  const ai = client || makeBrain(cfg);
   const lang = cfg.techdoc.language;
 
-  const sections = await Promise.all(
-    items.map(async (item, i) => {
+  const sections = await mapLimit(items, engineConcurrency(cfg), async (item, i) => {
       try {
         const { data } = await ai.json({
           system: techdocSystem(lang),
@@ -25,8 +25,7 @@ export async function techdoc({ cfg, date, items, client }) {
         log.warn(`section failed for ${item.id}: ${e.message}`);
         return { id: item.id, title: item.title, domain: item.domain, markdown: `## ${item.title}\n\n${item.summary || ""}`, claims: [], item };
       }
-    })
-  );
+  });
   log.ok(`wrote ${sections.length} section(s)`);
   return { date, sections };
 }

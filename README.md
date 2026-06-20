@@ -74,8 +74,10 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the design rationale.
   library + three ubiquitous CLIs (`rsvg-convert`, `ffmpeg`, `rclone`). No SDKs, no
   browser, no `node_modules` to rot. The Anthropic API is called over plain `fetch`;
   carousels are SVG rasterized with `rsvg-convert`.
-- **Cloud-first delivery.** The job is stateless and idempotent; Google Drive is the
-  transport, so a powered-off laptop just syncs the backlog on boot.
+- **Pluggable brain.** One interface, two engines: the local `claude -p` CLI (Claude
+  Max, no token billing) or the Anthropic REST API (cloud). Stages don't know which.
+- **Drive as transport.** The job is stateless and idempotent; Google Drive carries the
+  bundle, so a laptop that was off just syncs the backlog on boot.
 
 ---
 
@@ -92,14 +94,27 @@ bash desktop/install-extension.sh              # install the GNOME top-bar indic
 Full setup (Drive service account, GitHub secrets, cron) is in
 [`docs/SETUP.md`](docs/SETUP.md).
 
+## Two engines (pick in `pipeline/config.json` → `engine`)
+
+| | `claude-code` (default) | `api` |
+|---|---|---|
+| Brain | local `claude -p` CLI on a **Claude Max** plan | Anthropic REST (pay-per-token) |
+| Text cost | **$0** (covered by Max quota) | ~$40–75/mo |
+| Scheduler | **systemd user timer** (local) | GitHub Actions cron (cloud) |
+| Runs while PC is off? | No — but `Persistent=true` fires a missed run on next boot | Yes |
+
+The local engine trades always-on for zero text cost; the missed-run-on-boot
+behaviour means you still get the day's brief when you power on.
+
 ## Cost (transparent)
+
+With the default **`claude-code`** engine, the only paid piece is the voice:
 
 | | Lean (~30 min podcast) | Full 1 h |
 |---|---|---|
 | ElevenLabs | Pro ~$99/mo | Scale ~$330/mo |
-| Anthropic (research + write + verify + web search) | ~$40–75/mo | ~$40–75/mo |
-| Carousel images · GitHub Actions | $0 | $0 |
-| **Total** | **~$140–175/mo** | **~$370–405/mo** |
+| Text (Claude Max) · carousel · scheduler | $0 | $0 |
+| **Total** | **~$99/mo** | **~$330/mo** |
 
 Duration is one number in `pipeline/config.json` (`podcast.targetMinutes`).
 

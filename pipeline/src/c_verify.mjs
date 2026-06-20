@@ -1,62 +1,55 @@
-// Stage C — anti-hallucination pass. For every claim, fetch its cited source,
-// ask a strict checker whether the source supports it, and report the verdict.
-// High-stakes (numeric) claims get independent re-checks.
-import { makeClient } from "./lib/anthropic.mjs";
+// Stage C — anti-hallucination pass. Fetch each cited source, then have a strict
+// checker decide (per claim) whether the source supports it, quoting evidence.
+// Claims are verified in BATCHES (one LLM call per group) to stay fast and light
+// on quota; high-stakes numeric claims get one independent re-check.
+import { makeBrain, engineConcurrency } from "./lib/brain.mjs";
+import { mapLimit } from "./lib/util.mjs";
 import { fetchPageText } from "./lib/fetchpage.mjs";
 import { logger } from "./lib/log.mjs";
-import { verifySystem, verifyPrompt } from "./prompts.mjs";
+import { verifySystem, verifyBatchPrompt } from "./prompts.mjs";
 
 const log = logger("verify");
+const BATCH = 6;
+const EXCERPT = 4000;
 const isHighStakes = (t) => /\d/.test(t) && /(%|x\b|times|sota|state[- ]of[- ]the[- ]art|fps|tokens|params?|billion|million|benchmark)/i.test(t);
 
 export async function verify({ cfg, sections, client }) {
-  const ai = client || makeClient(cfg.secrets.anthropic);
+  const ai = client || makeBrain(cfg);
   const claims = sections.flatMap((s) => s.claims.map((c) => ({ ...c, sectionId: s.id })));
   if (!claims.length) {
     log.warn("no claims to verify");
     return { verdicts: {}, results: [], stats: { total: 0, supported: 0, unsupported: 0, unclear: 0 } };
   }
 
-  // Cache page fetches across claims that share a URL.
-  const pageCache = new Map();
-  const getPage = async (url) => {
-    if (!url) return { ok: false, text: "" };
-    if (!pageCache.has(url)) pageCache.set(url, await fetchPageText(url));
-    return pageCache.get(url);
-  };
+  // Fetch each unique source once.
+  const urls = [...new Set(claims.map((c) => c.source_url).filter(Boolean))];
+  const pages = new Map();
+  await mapLimit(urls, 6, async (u) => pages.set(u, await fetchPageText(u)));
+  const excerptFor = (u) => (pages.get(u)?.text || "").slice(0, EXCERPT);
+  const fetchedFor = (u) => !!pages.get(u)?.ok;
 
-  const checkOnce = async (claim) => {
-    const page = await getPage(claim.source_url);
-    const { data } = await ai.json({
-      system: verifySystem(),
-      prompt: verifyPrompt({ claim: claim.text, sourceUrl: claim.source_url, sourceText: page.text }),
-      model: cfg.verify.model,
-      maxTokens: 800,
-    });
-    return { verdict: data.verdict || "unclear", quote: data.quote || "", note: data.note || "", fetched: page.ok };
-  };
+  const verdictMap = await runBatches(ai, cfg, claims, excerptFor);
 
-  const results = await Promise.all(
-    claims.map(async (claim) => {
-      try {
-        let r = await checkOnce(claim);
-        // Independent re-checks for high-stakes claims; downgrade on disagreement.
-        if (cfg.verify.independentVotersForHighStakes > 0 && isHighStakes(claim.text) && r.verdict === "supported") {
-          for (let v = 0; v < cfg.verify.independentVotersForHighStakes; v++) {
-            const again = await checkOnce(claim);
-            if (again.verdict !== "supported") {
-              r = { ...again, note: `downgraded on independent recheck: ${again.note}` };
-              break;
-            }
-          }
+  // Independent re-check for high-stakes claims currently marked supported.
+  if ((cfg.verify.independentVotersForHighStakes || 0) > 0) {
+    const recheck = claims.filter((c) => isHighStakes(c.text) && verdictMap[c.id]?.verdict === "supported");
+    if (recheck.length) {
+      const again = await runBatches(ai, cfg, recheck, excerptFor);
+      for (const c of recheck) {
+        if (again[c.id] && again[c.id].verdict !== "supported") {
+          verdictMap[c.id] = { ...again[c.id], note: `downgraded on independent recheck: ${again[c.id].note || ""}` };
         }
-        return { ...claim, ...r };
-      } catch (e) {
-        return { ...claim, verdict: "unclear", quote: "", note: `checker error: ${e.message}`, fetched: false };
       }
-    })
-  );
+    }
+  }
 
+  const results = claims.map((c) => ({
+    ...c,
+    verdict: verdictMap[c.id]?.verdict || "unclear",
+    quote: verdictMap[c.id]?.quote || "",
+    note: verdictMap[c.id]?.note || (fetchedFor(c.source_url) ? "" : "source not fetched"),
+    fetched: fetchedFor(c.source_url),
+  }));
   const verdicts = Object.fromEntries(results.map((r) => [r.id, r]));
   const stats = {
     total: results.length,
@@ -66,6 +59,33 @@ export async function verify({ cfg, sections, client }) {
   };
   log.ok("verification complete", stats);
   return { verdicts, results, stats };
+}
+
+// Verify claims in chunks; returns { claimId: {verdict, quote, note} }.
+async function runBatches(ai, cfg, claims, excerptFor) {
+  const groups = [];
+  for (let i = 0; i < claims.length; i += BATCH) groups.push(claims.slice(i, i + BATCH));
+
+  const grouped = await mapLimit(groups, engineConcurrency(cfg), async (group) => {
+    try {
+      const { data } = await ai.json({
+        system: verifySystem(),
+        prompt: verifyBatchPrompt({
+          claims: group.map((c) => ({ id: c.id, text: c.text, source_url: c.source_url, source_excerpt: excerptFor(c.source_url) })),
+        }),
+        model: cfg.verify.model,
+        maxTokens: 3000,
+      });
+      return data.verdicts || [];
+    } catch (e) {
+      log.warn(`verify batch failed: ${e.message}`);
+      return group.map((c) => ({ id: c.id, verdict: "unclear", quote: "", note: `checker error: ${e.message}` }));
+    }
+  });
+
+  const map = {};
+  for (const v of grouped.flat()) if (v && v.id) map[v.id] = v;
+  return map;
 }
 
 export function renderVerificationReport({ date, results, stats }) {

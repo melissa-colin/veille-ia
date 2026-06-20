@@ -1,6 +1,10 @@
 {
   "$comment": "Central knobs for the veille pipeline. Secrets are NOT here — they come from env (see .env.example).",
 
+  "engine": "claude-code",
+  "engineConcurrency": 2,
+  "_engineComment": "claude-code = local `claude -p` CLI on your Max plan (no token billing, runs only when PC is on). api = Anthropic REST (pay-per-token, works in GitHub Actions cloud). Switch engines here.",
+
   "schedule": {
     "localTimezone": "Europe/Paris",
     "cronUTC": "0 4 * * *",

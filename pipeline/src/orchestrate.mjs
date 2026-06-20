@@ -7,7 +7,7 @@
 import { writeFileSync } from "node:fs";
 import { loadConfig, resolveDate } from "./lib/config.mjs";
 import { bundlePaths } from "./lib/paths.mjs";
-import { makeClient } from "./lib/anthropic.mjs";
+import { makeBrain } from "./lib/brain.mjs";
 import { logger } from "./lib/log.mjs";
 import { writeText } from "./lib/util.mjs";
 import { research } from "./a_research.mjs";
@@ -23,7 +23,7 @@ const log = logger("orchestrate");
 async function main() {
   const cfg = loadConfig();
   const date = resolveDate(cfg.runtime.date, cfg.schedule.localTimezone);
-  const client = makeClient(cfg.secrets.anthropic);
+  const client = makeBrain(cfg);
   const p = bundlePaths(cfg.runtime.outDir, date).ensure();
   const errors = [];
   const guard = async (name, fn, fallback) => {

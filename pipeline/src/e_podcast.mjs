@@ -3,7 +3,7 @@
 import { writeFileSync, mkdirSync, rmSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { makeClient } from "./lib/anthropic.mjs";
+import { makeBrain } from "./lib/brain.mjs";
 import { logger } from "./lib/log.mjs";
 import { sh, which, writeText } from "./lib/util.mjs";
 import { podcastSystem, podcastPrompt } from "./prompts.mjs";
@@ -12,7 +12,7 @@ const log = logger("podcast");
 const TTS_URL = (voiceId, fmt) => `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=${fmt}`;
 
 export async function writeScript({ cfg, date, brief, client }) {
-  const ai = client || makeClient(cfg.secrets.anthropic);
+  const ai = client || makeBrain(cfg);
   const { text } = await ai.chat({
     system: podcastSystem({ targetMinutes: cfg.podcast.targetMinutes }),
     messages: [{ role: "user", content: podcastPrompt({ date, brief, targetMinutes: cfg.podcast.targetMinutes }) }],

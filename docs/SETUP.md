@@ -1,18 +1,23 @@
 # Setup
 
+The default engine is **`claude-code`**: the pipeline drives the local `claude` CLI on
+your **Claude Max** plan, so the text work costs nothing per run. Follow the *Local
+(Max)* path. The *Cloud (API)* path at the bottom is an optional alternative.
+
 ## 0. Prerequisites
-- Node 20+
+- Node 20+ and the `claude` CLI, logged into your Max plan (`claude` runs interactively
+  at least once so its auth is stored).
 - CLIs: `rsvg-convert` (`librsvg2-bin`), `ffmpeg`, `rclone`
   - Ubuntu: `sudo apt install librsvg2-bin ffmpeg rclone`
-- Accounts/keys: **Anthropic** (required), **ElevenLabs** (for audio), a **Google
-  Cloud service account** (for Drive delivery from CI).
+- For audio: an **ElevenLabs** key. For Drive delivery in the cloud path: a **Google
+  Cloud service account**. (No Anthropic API key needed for the default engine.)
 
-## 1. Local run
+## 1. Local run (Claude Max engine)
 ```bash
-cp .env.example .env       # fill ANTHROPIC_API_KEY (and ELEVENLABS_API_KEY)
+cp .env.example .env       # add ELEVENLABS_API_KEY (ANTHROPIC_API_KEY only for the API engine)
 ```
 Set your ElevenLabs voice in `pipeline/config.json` → `podcast.tts.voiceId`
-(get IDs from the ElevenLabs Voice Library / API). Then:
+(copy an ID from the ElevenLabs Voices page). Then:
 ```bash
 node pipeline/src/orchestrate.mjs --dry-run    # full pipeline, no TTS, no Drive push
 node pipeline/src/orchestrate.mjs              # real run (delivers to ~/gdrive/veille if it exists)
@@ -20,9 +25,18 @@ node pipeline/src/orchestrate.mjs              # real run (delivers to ~/gdrive/
 Useful single stages:
 ```bash
 node pipeline/src/a_research.mjs               # print curated findings JSON
-node pipeline/src/f_linkedin.mjs --demo        # render a sample carousel, no API
+node pipeline/src/f_linkedin.mjs --demo        # render a sample carousel, no LLM call
 node pipeline/src/g_publish.mjs --dry-run      # self-test the bundle/feed plumbing
 ```
+
+## 1b. Schedule it locally
+```bash
+bash desktop/install-scheduler.sh        # systemd user timer, daily 06:00 (pass HH:MM to change)
+systemctl --user start veille.service    # run once now
+journalctl --user -u veille.service -f   # watch logs
+```
+`Persistent=true` means a run missed while the PC was off fires on the next boot. To let
+it run even when you're logged out: `sudo loginctl enable-linger $USER`.
 
 ## 2. Podcast budget
 `pipeline/config.json` → `podcast.targetMinutes`:
@@ -39,20 +53,22 @@ Swap voices/models in `podcast.tts`.
 3. Locally you can instead use an existing `rclone` remote named per
    `config.delivery.driveRemote` — the pipeline uses it if it exists.
 
-## 4. GitHub Actions (cloud cron)
-Push this repo (public is fine — no secrets are committed), then add repo
-**Settings → Secrets and variables → Actions**:
+## 4. Optional — Cloud (API) engine via GitHub Actions
+Only if you want it to run while your PC is off. Set `engine` to `"api"` in
+`pipeline/config.json`, push the repo, then add repo **Settings → Secrets and variables
+→ Actions**:
 
 | Secret | Value |
 |---|---|
-| `ANTHROPIC_API_KEY` | your Anthropic key |
+| `ANTHROPIC_API_KEY` | your Anthropic **API** key (separate from Max) |
 | `ELEVENLABS_API_KEY` | your ElevenLabs key |
 | `GDRIVE_SA_JSON` | the service-account JSON (raw or base64) |
 | `GDRIVE_FOLDER_ID` | the shared Drive folder ID |
 
 The workflow `.github/workflows/daily-veille.yml` runs daily at 04:00 UTC and can be
 triggered manually (**Actions → daily-veille → Run workflow**, optional `date`).
-Adjust the cron there (GitHub cron is UTC).
+Adjust the cron there (GitHub cron is UTC). Note: GitHub Actions cannot use your Max
+plan, so the cloud path requires an API key.
 
 ## 5. Desktop indicator
 ```bash

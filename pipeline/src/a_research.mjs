@@ -1,19 +1,18 @@
 // Stage A — fan out one web-search research agent per domain, then curate
 // (dedup + rank + select) into a tight brief.
 import { loadConfig, resolveDate } from "./lib/config.mjs";
-import { makeClient } from "./lib/anthropic.mjs";
+import { makeBrain, engineConcurrency } from "./lib/brain.mjs";
 import { logger } from "./lib/log.mjs";
-import { slugify } from "./lib/util.mjs";
+import { slugify, mapLimit } from "./lib/util.mjs";
 import { researchSystem, researchPrompt, curateSystem, curatePrompt } from "./prompts.mjs";
 
 const log = logger("research");
 
 export async function research({ cfg, date, client }) {
-  const ai = client || makeClient(cfg.secrets.anthropic);
+  const ai = client || makeBrain(cfg);
   const r = cfg.research;
 
-  const domainRuns = await Promise.all(
-    r.domains.map(async (d) => {
+  const domainRuns = await mapLimit(r.domains, engineConcurrency(cfg), async (d) => {
       try {
         const { data, citations } = await ai.json({
           system: researchSystem(),
@@ -31,8 +30,7 @@ export async function research({ cfg, date, client }) {
         log.warn(`${d.key} agent failed: ${e.message}`);
         return { domain: d.key, items: [], error: e.message };
       }
-    })
-  );
+  });
 
   const findings = domainRuns.flatMap((x) => x.items);
   if (findings.length === 0) {
