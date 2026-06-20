@@ -13,6 +13,20 @@ function mapModel(m = "") {
 
 const URL_RE = /https?:\/\/[^\s"'<>)\]]+/g;
 
+// The `claude -p --output-format json` envelope is one pure-JSON object. Slice
+// from the first { to the last } (tolerating stray log lines) and parse as-is.
+function parseEnvelope(out) {
+  const s = (out || "").trim();
+  const i = s.indexOf("{");
+  const j = s.lastIndexOf("}");
+  if (i === -1 || j <= i) return null;
+  try {
+    return JSON.parse(s.slice(i, j + 1));
+  } catch {
+    return null;
+  }
+}
+
 export function makeClaudeCodeClient(cfg) {
   const bin = process.env.CLAUDE_BIN || cfg?.claudeBin || "claude";
 
@@ -39,7 +53,11 @@ export function makeClaudeCodeClient(cfg) {
       child.on("close", (code) => {
         clearTimeout(timer);
         if (code !== 0) return reject(new Error(`claude exited ${code}: ${err.slice(-300)}`));
-        const env = tryParse(out);
+        // Parse the CLI envelope directly. Do NOT use tryParse here: the model's
+        // answer (env.result) may contain ```json fences, which tryParse would
+        // wrongly extract from inside this JSON string. The envelope itself is
+        // always a single pure-JSON object.
+        const env = parseEnvelope(out);
         if (!env) return reject(new Error(`claude returned unparseable envelope: ${out.slice(0, 200)}`));
         if (env.is_error) return reject(new Error(`claude error: ${env.result || env.subtype}`));
         const text = String(env.result || "");
