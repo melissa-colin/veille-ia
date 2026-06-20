@@ -1,0 +1,9 @@
+{
+  "uuid": "veille-news@melissacolin.ai",
+  "name": "Veille IA — News Indicator",
+  "description": "Top-bar 📰 indicator that lights up when a new daily AI-veille episode lands in your synced Google Drive folder. Click to play the podcast or open the brief. Badges the number of unheard episodes, so a multi-day backlog is obvious.",
+  "shell-version": ["45", "46", "47", "48"],
+  "url": "https://github.com/melissacolin/veille-ia",
+  "settings-schema": "",
+  "version": 1
+}

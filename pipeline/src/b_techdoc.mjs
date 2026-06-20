@@ -1,0 +1,58 @@
+// Stage B — turn each curated item into a deep technical section (with the
+// atomic claims that Stage C will verify).
+import { makeClient } from "./lib/anthropic.mjs";
+import { logger } from "./lib/log.mjs";
+import { techdocSystem, techdocPrompt } from "./prompts.mjs";
+
+const log = logger("techdoc");
+
+export async function techdoc({ cfg, date, items, client }) {
+  const ai = client || makeClient(cfg.secrets.anthropic);
+  const lang = cfg.techdoc.language;
+
+  const sections = await Promise.all(
+    items.map(async (item, i) => {
+      try {
+        const { data } = await ai.json({
+          system: techdocSystem(lang),
+          prompt: techdocPrompt({ date, item }),
+          model: cfg.techdoc.model,
+          maxTokens: 4000,
+        });
+        const claims = (data.claims || []).map((c, j) => ({ ...c, id: c.id || `${item.id}-c${j + 1}` }));
+        return { id: item.id, title: data.title || item.title, domain: item.domain, markdown: data.markdown || "", claims, item };
+      } catch (e) {
+        log.warn(`section failed for ${item.id}: ${e.message}`);
+        return { id: item.id, title: item.title, domain: item.domain, markdown: `## ${item.title}\n\n${item.summary || ""}`, claims: [], item };
+      }
+    })
+  );
+  log.ok(`wrote ${sections.length} section(s)`);
+  return { date, sections };
+}
+
+// Render the (draft or verified) markdown doc. `verdicts` maps claimId -> verdict.
+export function renderTechDoc({ date, sections, verdicts = {} }) {
+  const domains = [...new Set(sections.map((s) => s.domain))];
+  const lines = [
+    `# Veille IA — brief technique du ${date}`,
+    "",
+    `*${sections.length} sujet(s) · domaines : ${domains.join(", ")}*`,
+    "",
+    "> Chaque affirmation factuelle est vérifiée contre sa source primaire (voir `verification_report.md`). Les points non confirmés sont marqués ⚠.",
+    "",
+    "---",
+    "",
+  ];
+  for (const s of sections) {
+    let md = s.markdown.trim();
+    // Annotate unverified/unsupported claims inline by appending a marker after the section.
+    const flagged = s.claims.filter((c) => verdicts[c.id] && verdicts[c.id].verdict !== "supported");
+    lines.push(md, "");
+    if (flagged.length) {
+      lines.push("> ⚠ **À confirmer :** " + flagged.map((c) => `_${c.text}_`).join(" · "), "");
+    }
+    lines.push("---", "");
+  }
+  return lines.join("\n");
+}

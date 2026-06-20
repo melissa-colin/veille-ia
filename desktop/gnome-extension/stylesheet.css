@@ -1,0 +1,22 @@
+.veille-box {
+  spacing: 2px;
+}
+.veille-icon {
+  font-size: 14px;
+  padding: 0 2px;
+}
+.veille-active {
+  /* subtle highlight when there are unheard episodes */
+}
+.veille-badge {
+  background-color: #d33;
+  color: white;
+  border-radius: 9px;
+  font-size: 10px;
+  font-weight: bold;
+  padding: 0 5px;
+  margin-left: 1px;
+}
+.veille-new {
+  font-weight: bold;
+}

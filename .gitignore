@@ -1,0 +1,27 @@
+# Secrets — NEVER commit
+.env
+.env.*
+*.key
+*-sa.json
+gdrive-sa.json
+rclone.conf
+
+# Generated artifacts / bundles
+/out/
+/pipeline/out/
+*.mp3
+*.wav
+
+# Node / Playwright
+node_modules/
+.playwright/
+playwright-report/
+
+# OS / editor
+.DS_Store
+*.log
+.idea/
+.vscode/
+
+# Keep sample outputs that ARE committed for the portfolio
+!docs/sample-output/**

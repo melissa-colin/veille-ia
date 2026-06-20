@@ -1,0 +1,68 @@
+{
+  "$comment": "Central knobs for the veille pipeline. Secrets are NOT here — they come from env (see .env.example).",
+
+  "schedule": {
+    "localTimezone": "Europe/Paris",
+    "cronUTC": "0 4 * * *",
+    "catchUp": { "mode": "per-day", "maxDays": 7 }
+  },
+
+  "research": {
+    "lookbackHours": 36,
+    "model": "claude-sonnet-4-6",
+    "maxWebSearchesPerAgent": 8,
+    "domains": [
+      { "key": "general",      "label": "General AI — techniques & policy", "always": true },
+      { "key": "architecture", "label": "Model architecture (post-transformer)", "always": true },
+      { "key": "discourse",    "label": "Influential-figure discourse",        "always": true },
+      { "key": "vision3d",     "label": "Computer vision / 3D / motion",        "always": false, "conditional": true },
+      { "key": "wildcard",     "label": "Wildcard deep-tech AI",               "always": false, "conditional": true }
+    ],
+    "targetItems": { "min": 5, "max": 12 },
+    "wantNiche": true
+  },
+
+  "techdoc": {
+    "model": "claude-sonnet-4-6",
+    "language": "fr",
+    "comment": "French prose, English technical terms."
+  },
+
+  "verify": {
+    "model": "claude-opus-4-8",
+    "independentVotersForHighStakes": 2,
+    "dropUnverified": false,
+    "comment": "false = mark '⚠ non vérifié' inline; true = remove the claim entirely."
+  },
+
+  "podcast": {
+    "model": "claude-sonnet-4-6",
+    "language": "fr",
+    "targetMinutes": 30,
+    "comment": "30 min ≈ ElevenLabs Pro (~$99/mo). Set 60 for full hour (≈ Scale ~$330/mo).",
+    "tts": {
+      "provider": "elevenlabs",
+      "modelId": "eleven_flash_v2_5",
+      "voiceId": "REPLACE_WITH_YOUR_ELEVENLABS_VOICE_ID",
+      "secondVoiceId": "",
+      "format": "mp3_44100_128",
+      "maxCharsPerRequest": 2500,
+      "stability": 0.5,
+      "similarityBoost": 0.75
+    }
+  },
+
+  "linkedin": {
+    "model": "claude-sonnet-4-6",
+    "language": "en",
+    "positioning": "research-scientist",
+    "carousel": { "slides": { "min": 6, "max": 9 }, "width": 1080, "height": 1350 }
+  },
+
+  "delivery": {
+    "driveRemote": "veille",
+    "driveSubdir": "veille",
+    "localMirror": "~/gdrive/veille",
+    "comment": "driveRemote = rclone remote name; localMirror is where the synced Drive folder appears on the PC."
+  }
+}

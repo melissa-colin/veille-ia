@@ -1,0 +1,54 @@
+name: daily-veille
+
+# Runs the full pipeline in the cloud every morning and delivers the bundle to
+# Google Drive. Works while your PC is off; Drive sync pulls it on next power-on.
+on:
+  schedule:
+    - cron: "0 4 * * *" # 04:00 UTC ≈ 06:00 Europe/Paris (summer). GitHub cron is UTC.
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Target date YYYY-MM-DD (blank = today)"
+        required: false
+        default: ""
+
+concurrency:
+  group: daily-veille
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install system tools (rsvg-convert, ffmpeg, rclone)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq librsvg2-bin ffmpeg rclone
+
+      - name: Run veille pipeline
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          GDRIVE_SA_JSON: ${{ secrets.GDRIVE_SA_JSON }}
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+          VEILLE_OUT_DIR: ${{ github.workspace }}/out
+        run: |
+          DATE_ARG=""
+          if [ -n "${{ github.event.inputs.date }}" ]; then DATE_ARG="--date ${{ github.event.inputs.date }}"; fi
+          node pipeline/src/orchestrate.mjs $DATE_ARG
+
+      - name: Upload bundle as workflow artifact (debug / backup)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: veille-bundle
+          path: out/
+          retention-days: 14
+          if-no-files-found: ignore

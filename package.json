@@ -1,0 +1,20 @@
+{
+  "name": "veille-ia",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "description": "Automated daily AI-news intelligence: multi-agent research, hallucination-checked technical brief, French podcast (TTS), English LinkedIn carousel, delivered via Google Drive with a GNOME top-bar notifier.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "veille": "node pipeline/src/orchestrate.mjs",
+    "veille:dry": "node pipeline/src/orchestrate.mjs --dry-run",
+    "publish:test": "node pipeline/src/g_publish.mjs",
+    "carousel:demo": "node pipeline/src/f_linkedin.mjs --demo"
+  },
+  "comment": "Zero runtime npm dependencies by design — runs on Node 20 stdlib. External CLIs used: rsvg-convert (carousel), ffmpeg (podcast concat), rclone (Drive delivery).",
+  "dependencies": {},
+  "devDependencies": {}
+}
