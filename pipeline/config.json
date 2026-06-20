@@ -47,7 +47,7 @@
     "tts": {
       "provider": "elevenlabs",
       "modelId": "eleven_flash_v2_5",
-      "voiceId": "REPLACE_WITH_YOUR_ELEVENLABS_VOICE_ID",
+      "voiceId": "JBFqnCBsd6RMkjVDRZzb",
       "secondVoiceId": "",
       "format": "mp3_44100_128",
       "maxCharsPerRequest": 2500,
