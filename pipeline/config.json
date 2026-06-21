@@ -2,7 +2,7 @@
   "$comment": "Central knobs for the veille pipeline. Secrets are NOT here — they come from env (see .env.example).",
 
   "engine": "claude-code",
-  "engineConcurrency": 4,
+  "engineConcurrency": 2,
   "_engineComment": "claude-code = local `claude -p` CLI on your Max plan (no token billing, runs only when PC is on). api = Anthropic REST (pay-per-token, works in GitHub Actions cloud). Switch engines here.",
 
   "schedule": {
@@ -43,8 +43,8 @@
     "model": "claude-sonnet-4-6",
     "language": "fr",
     "format": "radio",
-    "discourseMinutes": 30,
-    "otherMinutes": 40,
+    "discourseMinutes": 25,
+    "otherMinutes": 25,
     "_lengthComment": "Discourse segment ~30 min + everything else ~30-60 min. Total target = discourseMinutes + otherMinutes.",
     "cast": [
       { "id": "ALEX",    "role": "animateur principal (host, pose les questions, fait les transitions)", "voice": "fr-FR-RemyMultilingualNeural" },

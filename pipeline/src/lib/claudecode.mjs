@@ -82,10 +82,11 @@ export function makeClaudeCodeClient(cfg) {
   };
 
   const api = {
-    async chat({ system, messages, model }) {
-      // Stages only ever send a single user turn; flatten it.
+    async chat({ system, messages, model, timeoutMs = 600000 }) {
+      // Stages only ever send a single user turn; flatten it. Generous timeout:
+      // the podcast script is a long single generation.
       const prompt = (messages || []).map((m) => (typeof m.content === "string" ? m.content : "")).join("\n\n");
-      return withRetry(() => runOnce({ system, prompt, model, timeoutMs: 300000 }));
+      return withRetry(() => runOnce({ system, prompt, model, timeoutMs }), 2);
     },
 
     async research({ system, prompt, model }) {
