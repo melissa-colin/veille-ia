@@ -6,7 +6,7 @@
   "_engineComment": "claude-code = local `claude -p` CLI on your Max plan (no token billing, runs only when PC is on). api = Anthropic REST (pay-per-token, works in GitHub Actions cloud). Switch engines here.",
 
   "schedule": {
-    "localTimezone": "Europe/Paris",
+    "localTimezone": "America/Edmonton",
     "cronUTC": "0 4 * * *",
     "catchUp": { "mode": "per-day", "maxDays": 7 }
   },
