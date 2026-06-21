@@ -9,22 +9,32 @@ import { dirname } from "node:path";
 import { loadConfig, resolveDate } from "./lib/config.mjs";
 import { bundlePaths } from "./lib/paths.mjs";
 import { logger } from "./lib/log.mjs";
-import { readJSONSafe, writeJSON, copyInto } from "./lib/util.mjs";
-import { synthesize } from "./e_podcast.mjs";
+import { readJSONSafe, writeJSON, copyInto, writeText } from "./lib/util.mjs";
+import { synthesize, writeScript } from "./e_podcast.mjs";
 
 const log = logger("make-podcast");
+
+// Has multi-voice speaker tags? (v2 radio script)
+const isMultiVoice = (txt) => /^[A-ZÀ-Ÿ]{2,18}:\s/m.test(txt);
 
 async function main() {
   const cfg = loadConfig();
   const date = resolveDate(cfg.runtime.date, cfg.schedule.localTimezone);
   const p = bundlePaths(cfg.runtime.outDir, date);
 
-  if (!existsSync(p.script)) {
-    throw new Error(`no script at ${p.script} — run the pipeline first (it writes podcast_script.md even without a voice)`);
+  let scriptText = existsSync(p.script) ? readFileSync(p.script, "utf8").replace(/^#.*\n+/, "").trim() : "";
+
+  // If there's no script, or it's the old single-voice one but we have a cast,
+  // (re)generate the multi-voice script from the verified brief — NO re-research.
+  const wantMulti = (cfg.podcast.cast || []).length > 1;
+  if (!scriptText || (wantMulti && !isMultiVoice(scriptText))) {
+    if (!existsSync(p.technicalDoc)) throw new Error(`no brief at ${p.technicalDoc} — run the pipeline first`);
+    const brief = readFileSync(p.technicalDoc, "utf8");
+    log.info("generating multi-voice script from the existing brief (no re-research)…");
+    const { title, script } = await writeScript({ cfg, date, brief });
+    writeText(p.script, `# ${title}\n\n${script}\n`);
+    scriptText = script;
   }
-  // Strip the leading "# title" line; the rest is the spoken script.
-  const raw = readFileSync(p.script, "utf8");
-  const scriptText = raw.replace(/^#.*\n+/, "").trim();
   log.info(`script: ${scriptText.length} chars (~${Math.round(scriptText.split(/\s+/).length / 150)} min)`);
 
   const r = await synthesize({ cfg, scriptText, outPath: p.podcast });
