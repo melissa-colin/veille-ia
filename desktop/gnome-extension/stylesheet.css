@@ -1,12 +1,6 @@
-.veille-box {
-  spacing: 2px;
-}
 .veille-icon {
   font-size: 14px;
   padding: 0 2px;
-}
-.veille-active {
-  /* subtle highlight when there are unheard episodes */
 }
 .veille-badge {
   background-color: #d33;
@@ -15,8 +9,19 @@
   font-size: 10px;
   font-weight: bold;
   padding: 0 5px;
-  margin-left: 1px;
+  margin-left: 2px;
 }
-.veille-new {
-  font-weight: bold;
+.veille-prog {
+  spacing: 6px;
+  padding: 4px 2px;
+}
+.veille-bar-track {
+  height: 12px;
+  background-color: #2b2f36;
+  border-radius: 6px;
+}
+.veille-bar-fill {
+  height: 12px;
+  background-color: #3584e4;
+  border-radius: 6px;
 }

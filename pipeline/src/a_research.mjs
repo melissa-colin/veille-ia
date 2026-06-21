@@ -5,18 +5,28 @@ import { makeBrain, engineConcurrency } from "./lib/brain.mjs";
 import { logger } from "./lib/log.mjs";
 import { slugify, mapLimit } from "./lib/util.mjs";
 import { researchSystem, researchPrompt, curateSystem, curatePrompt } from "./prompts.mjs";
+import { readHistory, coveredTitles, appendHistory } from "./lib/history.mjs";
 
 const log = logger("research");
 
 export async function research({ cfg, date, client }) {
   const ai = client || makeBrain(cfg);
   const r = cfg.research;
+  const history = readHistory(cfg);
+  const perDomainTarget = r.perDomainTarget || { discourse: 7, general: 4, architecture: 4, vision3d: 2, wildcard: 2 };
 
   const domainRuns = await mapLimit(r.domains, engineConcurrency(cfg), async (d) => {
       try {
         const { data, citations } = await ai.json({
           system: researchSystem(),
-          prompt: researchPrompt({ date, domain: d.key, lookbackHours: r.lookbackHours, wantNiche: r.wantNiche }),
+          prompt: researchPrompt({
+            date,
+            domain: d.key,
+            lookbackHours: r.lookbackHours,
+            wantNiche: r.wantNiche,
+            covered: coveredTitles(history, { domain: d.key }),
+            targetItems: perDomainTarget[d.key],
+          }),
           model: r.model,
           maxSearches: r.maxWebSearchesPerAgent,
           maxTokens: 8000,
@@ -54,6 +64,7 @@ export async function research({ cfg, date, client }) {
 
   // Ensure every item has a stable id.
   items = items.map((it, i) => ({ ...it, id: it.id || `${it.domain || "item"}-${slugify(it.title || String(i))}` }));
+  appendHistory(cfg, items, date); // remember these so tomorrow won't repeat them
   log.ok(`curated ${items.length} item(s)`, { domains: [...new Set(items.map((i) => i.domain))] });
   return { date, items, byDomain: domainRuns };
 }

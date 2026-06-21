@@ -17,7 +17,7 @@ export function researchSystem() {
   ].join("\n");
 }
 
-export function researchPrompt({ date, domain, lookbackHours, wantNiche }) {
+export function researchPrompt({ date, domain, lookbackHours, wantNiche, covered = [], targetItems }) {
   const focus = {
     general:
       "Worldwide state-of-the-art AI: major model releases, new training/inference techniques, AND policy/politics/regulation/geopolitics of AI.",
@@ -31,16 +31,24 @@ export function researchPrompt({ date, domain, lookbackHours, wantNiche }) {
       "One deeper technical AI area with real fresh news this window (e.g. RL, agentic systems, inference kernels/hardware, theory, interpretability). CONDITIONAL domain.",
   }[domain];
 
-  const conditional = (domain === "vision3d" || domain === "wildcard")
-    ? `\nThis is a CONDITIONAL domain. If there is no genuinely noteworthy, recent, well-sourced news in the last ${lookbackHours}h, return {"notable": false, "items": []}. Do NOT pad with stale or minor items.`
+  const isCore = domain === "general" || domain === "architecture" || domain === "discourse";
+  const fallback = isCore
+    ? `If you cannot find enough genuinely fresh (<${lookbackHours}h) well-sourced items, DO fill the rest with slightly OLDER but still highly valuable, evergreen-ish items that have NOT already been covered (see the avoid-list). Never return an empty list for this domain — always surface real, sourced, useful items.`
+    : `This is a CONDITIONAL domain. If nothing genuinely noteworthy & well-sourced exists in the last ${lookbackHours}h, you MAY pick one excellent slightly-older uncovered item; if truly nothing worthwhile, return {"notable": false, "items": []}. Never pad with filler.`;
+
+  const target = targetItems ? `Aim for about ${targetItems} substantial items.` : "";
+  const avoid = covered.length
+    ? `\nALREADY COVERED — do NOT repeat these (find different angles/topics):\n- ${covered.slice(0, 60).join("\n- ")}`
     : "";
 
   return [
     TODAY(date),
     `Research focus: ${focus}`,
-    `Time window: developments from roughly the last ${lookbackHours} hours (a little older is OK only if it is clearly still "news" and you missed it).`,
+    `Time window: prefer developments from the last ${lookbackHours} hours.`,
+    target,
+    fallback,
     wantNiche ? "Include at least one niche / specialist item if a credible one exists." : "",
-    conditional,
+    avoid,
     "",
     "Search the web, then return JSON of this exact shape:",
     `{"notable": true, "items": [{
@@ -136,22 +144,35 @@ export function verifyBatchPrompt({ claims }) {
   ].join("\n");
 }
 
-// ---- Stage E: podcast script ---------------------------------------------
-export function podcastSystem({ targetMinutes }) {
+// ---- Stage E: interactive multi-voice radio-show script ------------------
+export function podcastSystem({ cast }) {
+  const roster = cast.map((c) => `- ${c.id}: ${c.role}`).join("\n");
   return [
-    "You write engaging spoken-word podcast scripts in FRENCH about AI news, for a technically curious listener.",
-    `Target length: about ${targetMinutes} minutes when read aloud (~150 words/minute => budget words accordingly).`,
-    "Style: natural spoken French, clear narration, a warm expert host voice. Explain jargon briefly. Smooth transitions between stories.",
-    "Structure: cold-open hook, then per-theme segments, then a short outro. Use plain sentences (this will be sent to TTS); avoid markdown, lists, URLs, and code. Spell out acronyms on first use.",
-    "Only use facts present in the provided brief. Do not add new claims.",
+    "You are the head writer of a FRENCH daily AI radio show — lively, intelligent, and genuinely interactive, in the spirit of a great public-radio panel.",
+    "It is NOT a monologue. A central host drives the show, asks pointed questions, hands off to correspondents/experts for deep dives, and the panel reacts, debates, and builds on each other.",
+    "CAST (use these speaker IDs exactly):",
+    roster,
+    "Writing rules:",
+    "- Output ONE turn per line, formatted exactly: `SPEAKER: spoken text`. No markdown, no stage directions in brackets, no URLs, no bullet lists.",
+    "- Natural spoken French. Real dialogue: questions, short reactions ('Exactement.', 'Attends, ça veut dire quoi concrètement ?'), disagreements, follow-ups. Vary turn length; avoid long uninterrupted monologues (break them with host interjections).",
+    "- The HOST opens with a cold-open hook and a quick run-of-show, introduces each segment, and closes the show. Spell out acronyms on first use.",
+    "- Keep it accurate: ONLY use facts from the provided brief. Do not invent. Flag uncertainty naturally ('c'est encore à confirmer').",
   ].join("\n");
 }
-export function podcastPrompt({ date, brief, targetMinutes }) {
-  const words = Math.round(targetMinutes * 150);
+export function podcastPrompt({ date, brief, discourseMinutes, otherMinutes, cast }) {
+  const total = discourseMinutes + otherMinutes;
+  const words = Math.round(total * 150);
+  const ids = cast.map((c) => c.id).join(", ");
   return [
     TODAY(date),
-    `Write the full French podcast script (~${words} words) from this verified brief.`,
-    "Return PLAIN TEXT only (no markdown). Begin with a one-line title on its own line prefixed 'TITRE: '.",
+    `Write the FULL French radio-show script as a dialogue between: ${ids}.`,
+    `Total length ≈ ${total} minutes (~${words} words).`,
+    `Structure & budget:`,
+    `1) Cold-open + run-of-show (host).`,
+    `2) DISCOURSE / actualité & déclarations de figures influentes — the main block, ≈ ${discourseMinutes} min: treat each item as a mini-segment with host questions + panel reactions + an expert hand-off.`,
+    `3) The OTHER topics (architecture, general/policy, vision/3D, wildcard if present) — ≈ ${otherMinutes} min total, as deeper technical segments with at least one back-and-forth each.`,
+    `4) Short outro (host): what to watch next + sign-off.`,
+    "Return PLAIN TEXT, one `SPEAKER: text` per line. The FIRST line must be `TITRE: <titre de l'épisode>`.",
     "",
     "VERIFIED BRIEF (markdown):",
     brief,
@@ -161,30 +182,52 @@ export function podcastPrompt({ date, brief, targetMinutes }) {
 // ---- Stage F: LinkedIn post + carousel -----------------------------------
 export function linkedinSystem() {
   return [
-    "You help a strong AI/ML student build a public research presence on LinkedIn, with the long-term goal of becoming a research scientist (Google-caliber).",
-    "Write in ENGLISH. Voice: authentic, human, first-person, humble-but-sharp. NOT corporate, NOT hype, NOT emoji-spam.",
-    "Goal: demonstrate genuine technical understanding and taste so that researchers and recruiters take notice over time. Show a point of view, not just a summary.",
-    "Discoverability matters (clear hook, skimmable structure, a few precise hashtags) but never keyword-stuff.",
-    "Only use facts from the provided brief.",
+    "You are a world-class LinkedIn ghostwriter for a brilliant AI/ML student whose long-term goal is to become a research scientist (Google-caliber). Every post must read as authentically hers, while being engineered to perform.",
+    "Write in ENGLISH. Voice: first-person, human, curious, sharp, humble-confident. Absolutely NOT corporate, NOT hype-bro, NOT ChatGPT-generic, NOT emoji-spam.",
+    "",
+    "VIRALITY & ENGAGEMENT RULES (follow ALL):",
+    "1. HOOK: the first line must stop the scroll on its own — a bold claim, a counter-intuitive take, a sharp question, or a vivid stat. ≤ 12 words. No 'I'm excited to share'.",
+    "2. SECOND line: amplify the hook / create a curiosity gap so people click 'see more'. Keep the first ~210 characters carrying the whole tension (that's the preview LinkedIn shows).",
+    "3. FORMAT for mobile: very short paragraphs (1–2 sentences), generous line breaks, lots of white space. No walls of text. Optionally one tight list with line-break bullets (— or →).",
+    "4. SUBSTANCE: one clear idea, a genuine technical insight, and HER point of view / takeaway. Teach one thing precisely. Show taste, not a press release.",
+    "5. CTA: end with ONE genuine, low-friction question that invites replies (comments > likes for reach). No 'thoughts?' cliché — make it specific.",
+    "6. HASHTAGS: exactly 3–5, specific and mixed reach (e.g. #MachineLearning + a niche one like #StateSpaceModels). On their own last line.",
+    "7. MENTIONS: if a lab/company/researcher is central AND clearly identifiable, you MAY add 1–2 @mentions inline (as plain @Name — a human will link them). Never force it.",
+    "8. NO outbound links in the body (LinkedIn suppresses reach) — tell the reader the source is 'in the comments'.",
+    "9. Length 120–220 words. Authentic > polished. A small, specific personal angle ('I spent the morning re-reading the paper and…') beats grand claims.",
+    "Only use facts from the provided brief. Never fabricate.",
   ].join("\n");
 }
 export function linkedinPrompt({ date, brief }) {
   return [
     TODAY(date),
-    "Pick the SINGLE most compelling item for a research-minded audience and produce a LinkedIn post plus a carousel.",
+    "Pick the SINGLE most compelling item for a research-minded audience and produce a viral-engineered LinkedIn post + a designed carousel (the carousel is a teaching asset that complements the post).",
     "Return JSON:",
     `{
   "chosen_item_id": string,
-  "post": string,                 // the LinkedIn post text, ready to paste. 120-220 words. Strong first line hook. End with a genuine question or takeaway. 3-5 hashtags on the last line.
+  "post": string,                 // follow ALL virality rules from the system prompt. Hashtags on the last line.
+  "first_comment": string,        // the source link + one-line context, to be posted as the first comment (keeps links out of the body)
   "carousel": {
-    "title": string,             // cover slide title (<= 8 words)
+    "kicker": string,            // tiny eyebrow label, e.g. "AI RESEARCH" (<= 3 words)
+    "title": string,             // cover title (<= 8 words), punchy
     "subtitle": string,          // cover subtitle (<= 14 words)
-    "slides": [                  // 5-8 content slides AFTER the cover
-      {"heading": string, "body": string}   // heading <= 7 words; body <= 32 words, plain text
+    "slides": [                  // 5-8 content slides AFTER the cover, each teaching ONE point
+      {
+        "heading": string,        // <= 7 words
+        "body": string,           // <= 30 words, plain text
+        "visual": {               // OPTIONAL — include only when it genuinely clarifies; else omit
+          "type": "stat" | "bars" | "flow" | "compare",
+          "stat": {"value": string, "label": string},                 // for type "stat"
+          "bars": [{"label": string, "value": number}],               // for type "bars" (values 0..100, <=4)
+          "steps": [string],                                          // for type "flow" (<=4 short steps)
+          "compare": {"leftTitle": string, "left": [string], "rightTitle": string, "right": [string]}  // for type "compare" (<=3 each)
+        }
+      }
     ],
-    "outro": {"heading": string, "body": string}  // CTA / follow slide
+    "outro": {"heading": string, "body": string}  // follow/CTA slide
   }
 }`,
+    "Design intent: at least 2-3 slides SHOULD use a visual (stat/bars/flow/compare) so the carousel is graphic, not walls of text.",
     "",
     "VERIFIED BRIEF (markdown):",
     brief,

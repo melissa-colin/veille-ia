@@ -18,13 +18,13 @@ export async function linkedin({ cfg, date, brief, postPath, carouselDir, client
     system: linkedinSystem(),
     prompt: linkedinPrompt({ date, brief }),
     model: cfg.linkedin.model,
-    maxTokens: 3000,
+    maxTokens: 4500,
   });
 
   const post = data.post || "";
   writeText(postPath, postMarkdown({ date, data }));
 
-  let render = { pngCount: 0, svgCount: 0, rasterized: false };
+  let render = { pngCount: 0, pdf: null, rasterized: false };
   if (data.carousel?.slides?.length) {
     render = await renderCarousel({
       carousel: data.carousel,
@@ -34,7 +34,7 @@ export async function linkedin({ cfg, date, brief, postPath, carouselDir, client
       brand: BRAND,
     });
   }
-  log.ok(`post + carousel ready`, { item: data.chosen_item_id, slides: render.pngCount || render.svgCount });
+  log.ok(`post + carousel ready`, { item: data.chosen_item_id, slides: render.pngCount, pdf: !!render.pdf });
   return { chosenItemId: data.chosen_item_id, post, render };
 }
 
@@ -42,19 +42,25 @@ function postMarkdown({ date, data }) {
   const lines = [
     `# LinkedIn post — ${date}`,
     "",
-    `_Chosen item: ${data.chosen_item_id || "?"}. English. Review, tweak the voice, then post with the carousel PNGs._`,
+    `_Chosen item: ${data.chosen_item_id || "?"}. English. Post the text, attach **carousel.pdf** (LinkedIn → Document), then drop the first comment._`,
     "",
-    "## Post",
+    "## Post (copy-paste)",
     "",
     "```",
     data.post || "",
+    "```",
+    "",
+    "## First comment (post right after, keeps the link out of the body)",
+    "",
+    "```",
+    data.first_comment || "",
     "```",
     "",
     "## Carousel outline",
     "",
     `**Cover:** ${data.carousel?.title || ""} — _${data.carousel?.subtitle || ""}_`,
     "",
-    ...(data.carousel?.slides || []).map((s, i) => `${i + 1}. **${s.heading}** — ${s.body}`),
+    ...(data.carousel?.slides || []).map((s, i) => `${i + 1}. **${s.heading}** — ${s.body}${s.visual ? ` _(${s.visual.type})_` : ""}`),
     "",
     `**Outro:** ${data.carousel?.outro?.heading || ""} — ${data.carousel?.outro?.body || ""}`,
   ];
@@ -66,16 +72,16 @@ async function demo() {
   const cfg = loadConfig();
   const dir = join(cfg.runtime.outDir, "_carousel-demo");
   const carousel = {
-    kicker: "AI RESEARCH BRIEF",
+    kicker: "AI RESEARCH",
     title: "Post-Transformer Models Are Getting Real",
     subtitle: "What this week's state-space results mean for long-context inference",
     slides: [
-      { heading: "The bottleneck", body: "Attention is quadratic in sequence length. Past ~100k tokens, that cost dominates everything else." },
-      { heading: "State-space idea", body: "SSMs carry a fixed-size recurrent state, giving linear-time inference and constant memory per token." },
-      { heading: "Why it matters", body: "Linear scaling unlocks document-, codebase-, and agent-trace-length contexts without exploding cost." },
-      { heading: "The catch", body: "Pure SSMs can lag on exact recall. Hybrids interleave a few attention layers to recover it." },
+      { heading: "The bottleneck", body: "Attention is quadratic in sequence length. Past ~100k tokens, that cost dominates everything.", visual: { type: "stat", stat: { value: "O(n²)", label: "attention cost vs sequence length" } } },
+      { heading: "State-space idea", body: "SSMs carry a fixed-size recurrent state — linear-time inference, constant memory per token.", visual: { type: "flow", steps: ["Token in", "Update fixed state", "Emit output", "O(1) memory / token"] } },
+      { heading: "Throughput, measured", body: "On long contexts, hybrids report large decoding speedups over dense attention.", visual: { type: "bars", bars: [{ label: "Dense attention", value: 35 }, { label: "Hybrid SSM", value: 90 }] } },
+      { heading: "The trade-off", body: "Pure SSMs can lag on exact recall; hybrids add a few attention layers to recover it.", visual: { type: "compare", compare: { leftTitle: "Pure SSM", left: ["Linear time", "Weaker recall"], rightTitle: "Hybrid", right: ["Near-linear", "Recall restored"] } } },
     ],
-    outro: { heading: "Follow along", body: "I write a short, source-checked AI brief most days. Wrong takes welcome — tell me where I'm off." },
+    outro: { heading: "Follow along", body: "I write a short, source-checked AI brief most days. Tell me where I'm wrong." },
   };
   const r = await renderCarousel({ carousel, dir, width: cfg.linkedin.carousel.width, height: cfg.linkedin.carousel.height, brand: BRAND });
   log.ok("demo carousel rendered", { dir, ...r });

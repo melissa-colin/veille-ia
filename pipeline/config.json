@@ -42,8 +42,16 @@
   "podcast": {
     "model": "claude-sonnet-4-6",
     "language": "fr",
-    "targetMinutes": 30,
-    "comment": "30 min ≈ ElevenLabs Pro (~$99/mo). Set 60 for full hour (≈ Scale ~$330/mo).",
+    "format": "radio",
+    "discourseMinutes": 30,
+    "otherMinutes": 40,
+    "_lengthComment": "Discourse segment ~30 min + everything else ~30-60 min. Total target = discourseMinutes + otherMinutes.",
+    "cast": [
+      { "id": "ALEX",    "role": "animateur principal (host, pose les questions, fait les transitions)", "voice": "fr-FR-RemyMultilingualNeural" },
+      { "id": "CAMILLE", "role": "co-animatrice / analyste (réagit, contextualise, nuance)",            "voice": "fr-FR-VivienneMultilingualNeural" },
+      { "id": "JULIEN",  "role": "correspondant / expert invité (sections directes, détails techniques)", "voice": "fr-FR-HenriNeural" },
+      { "id": "SARA",    "role": "experte invitée (second avis, débat)",                                 "voice": "fr-FR-DeniseNeural" }
+    ],
     "tts": {
       "provider": "edge",
       "_providerComment": "edge = free neural FR voices (Microsoft, no key). elevenlabs = premium (paid).",
