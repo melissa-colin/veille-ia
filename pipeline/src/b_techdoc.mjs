@@ -45,6 +45,9 @@ export function renderTechDoc({ date, sections, verdicts = {} }) {
   ];
   for (const s of sections) {
     let md = s.markdown.trim();
+    // Always surface the development's date so downstream (podcast/post) can cite it.
+    const d = s.item?.date;
+    if (d) lines.push(`**Date : ${d}**`, "");
     // Annotate unverified/unsupported claims inline by appending a marker after the section.
     const flagged = s.claims.filter((c) => verdicts[c.id] && verdicts[c.id].verdict !== "supported");
     lines.push(md, "");

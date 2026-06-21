@@ -156,6 +156,7 @@ export function podcastSystem({ cast }) {
     "- Output ONE turn per line, formatted exactly: `SPEAKER: spoken text`. No markdown, no stage directions in brackets, no URLs, no bullet lists.",
     "- Natural spoken French. Real dialogue: questions, short reactions ('Exactement.', 'Attends, ça veut dire quoi concrètement ?'), disagreements, follow-ups. Vary turn length; avoid long uninterrupted monologues (break them with host interjections).",
     "- The HOST opens with a cold-open hook and a quick run-of-show, introduces each segment, and closes the show. Spell out acronyms on first use.",
+    "- DATES: for EVERY news item, state its precise date OUT LOUD when introducing it, spoken naturally in French (e.g. 'mardi dernier, le 17 juin', or 'd'après une annonce du 17 juin 2026…'). Use the item's date from the brief. Never present an item without situating it in time.",
     "- Keep it accurate: ONLY use facts from the provided brief. Do not invent. Flag uncertainty naturally ('c'est encore à confirmer').",
   ].join("\n");
 }
