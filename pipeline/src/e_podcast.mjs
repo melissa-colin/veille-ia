@@ -11,11 +11,22 @@ import { podcastSystem, podcastPrompt } from "./prompts.mjs";
 const log = logger("podcast");
 const TTS_URL = (voiceId, fmt) => `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=${fmt}`;
 
+// Spoken AI-disclaimer, guaranteed at the very start of every episode.
+const DISCLAIMER =
+  "Avant de commencer, un avertissement important. Ce podcast est entièrement généré par intelligence artificielle, voix comprises. Les informations et leurs sources ont été vérifiées automatiquement par plusieurs agents, mais des erreurs restent possibles : vérifiez toujours les sources en ligne avant de vous appuyer sur ce que vous entendez ici. Cela dit, entrons dans le vif du sujet.";
+
+function modelDisplayName(id = "") {
+  const m = id.match(/claude-(opus|sonnet|haiku)-(\d)-(\d+)/i);
+  if (m) return `Claude ${m[1][0].toUpperCase() + m[1].slice(1)} ${m[2]}.${m[3]}`;
+  return "le modèle d'IA";
+}
+
 export async function writeScript({ cfg, date, brief, client }) {
   const ai = client || makeBrain(cfg);
   const cast = cfg.podcast.cast || [{ id: "ALEX", role: "host", voice: cfg.podcast.tts.edgeVoice }];
+  const modelName = modelDisplayName(cfg.podcast.model);
   const { text } = await ai.chat({
-    system: podcastSystem({ cast }),
+    system: podcastSystem({ cast, modelName }),
     messages: [{ role: "user", content: podcastPrompt({ date, brief, discourseMinutes: cfg.podcast.discourseMinutes || 30, otherMinutes: cfg.podcast.otherMinutes || 40, cast }) }],
     model: cfg.podcast.model,
     maxTokens: 32000,
@@ -23,7 +34,10 @@ export async function writeScript({ cfg, date, brief, client }) {
   });
   const m = text.match(/^TITRE:\s*(.+)$/m);
   const title = m ? m[1].trim() : `Veille IA — ${date}`;
-  const body = text.replace(/^TITRE:.*$/m, "").trim();
+  let body = text.replace(/^TITRE:.*$/m, "").trim();
+  // Guarantee the disclaimer is the first thing spoken by the host.
+  const hostId = cast[0]?.id || "ALEX";
+  body = `${hostId}: ${DISCLAIMER}\n${body}`;
   log.ok(`script written (~${Math.round(body.split(/\s+/).length / 150)} min, ${body.length} chars)`);
   return { title, script: body, full: text };
 }

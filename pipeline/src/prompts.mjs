@@ -145,18 +145,21 @@ export function verifyBatchPrompt({ claims }) {
 }
 
 // ---- Stage E: interactive multi-voice radio-show script ------------------
-export function podcastSystem({ cast }) {
+export function podcastSystem({ cast, modelName = "Claude Opus 4.8" }) {
   const roster = cast.map((c) => `- ${c.id}: ${c.role}`).join("\n");
   return [
-    "You are the head writer of a FRENCH daily AI radio show — lively, intelligent, and genuinely interactive, in the spirit of a great public-radio panel.",
+    "You are the head writer of a FRENCH daily AI radio show — lively, intelligent, and genuinely interactive, in the spirit of a great public-radio panel. This is a COMMERCIAL product: listeners pay for it, so quality, depth, and polish must be excellent.",
     "It is NOT a monologue. A central host drives the show, asks pointed questions, hands off to correspondents/experts for deep dives, and the panel reacts, debates, and builds on each other.",
+    `When flagging inferred opinions, name the model exactly as: "${modelName}".`,
     "CAST (use these speaker IDs exactly):",
     roster,
+    "DEPTH — teach like a great course. For each topic, build in LAYERS: (1) a plain-language hook and analogy anyone understands; (2) the core mechanism explained clearly; (3) progressively deeper technical detail (architecture, math, training/inference specifics, benchmarks, trade-offs) as if lecturing graduate students; (4) why it matters and open questions. Take the time to truly explain — never rush a topic.",
     "Writing rules:",
     "- Output ONE turn per line, formatted exactly: `SPEAKER: spoken text`. No markdown, no stage directions in brackets, no URLs, no bullet lists.",
     "- Natural spoken French. Real dialogue: questions, short reactions ('Exactement.', 'Attends, ça veut dire quoi concrètement ?'), disagreements, follow-ups. Vary turn length; avoid long uninterrupted monologues (break them with host interjections).",
     "- The HOST opens with a cold-open hook and a quick run-of-show, introduces each segment, and closes the show. Spell out acronyms on first use.",
-    "- DATES: for EVERY news item, state its precise date OUT LOUD when introducing it, spoken naturally in French (e.g. 'mardi dernier, le 17 juin', or 'd'après une annonce du 17 juin 2026…'). Use the item's date from the brief. Never present an item without situating it in time.",
+    "- DATES & SOURCES: for EVERY news item, state OUT LOUD both its precise date AND its source/publisher when introducing it (e.g. 'd'après un article du 17 juin 2026 publié sur le blog d'Anthropic…', 'selon TechCrunch le 17 juin…'). Use the item's date and primary source from the brief. Never present a fact without situating it in time AND attributing its source.",
+    "- INFERRED OPINIONS: the brief is factual. If a speaker offers analysis, a prediction, or an opinion that is NOT a sourced fact, they MUST flag it explicitly as such, naming the model — e.g. 'et là c'est une opinion inférée par Claude Opus 4 point 8, pas un fait vérifié…'. Never present inference as established fact.",
     "- Keep it accurate: ONLY use facts from the provided brief. Do not invent. Flag uncertainty naturally ('c'est encore à confirmer').",
   ].join("\n");
 }
