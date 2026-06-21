@@ -9,11 +9,14 @@ your **Claude Max** plan, so the text work costs nothing per run. Follow the *Lo
   at least once so its auth is stored).
 - CLIs: `rsvg-convert` (`librsvg2-bin`), `ffmpeg`, `rclone`
   - Ubuntu: `sudo apt install librsvg2-bin ffmpeg rclone`
-- Free TTS (default): `pip install --user edge-tts` (Microsoft neural voices, no key).
-  Invoked as `python3 -m edge_tts`, so no PATH setup needed.
-- Optional premium TTS: an **ElevenLabs** key (set `podcast.tts.provider` to
-  `elevenlabs`). Optional cloud delivery: a **Google Cloud service account**.
-  (No Anthropic API key needed for the default `claude-code` engine.)
+- TTS engine (`podcast.tts.provider`), pick one:
+  - **`xtts`** (default, recommended) — local Coqui XTTS-v2: free, high quality,
+    multi-voice, runs on GPU. Install once: `bash desktop/install-xtts.sh` (needs
+    `uv`; creates an isolated `~/.veille-tts`, ~3 GB). ~0.4× real-time on a small GPU.
+  - **`edge`** — Microsoft neural voices, free, lighter: `pip install --user edge-tts`.
+  - **`elevenlabs`** — paid premium, needs `ELEVENLABS_API_KEY`.
+- Optional cloud delivery: a **Google Cloud service account**. (No Anthropic API key
+  needed for the default `claude-code` engine.)
 
 ## 1. Local run (Claude Max engine)
 ```bash

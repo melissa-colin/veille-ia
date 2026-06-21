@@ -46,15 +46,20 @@
     "discourseMinutes": 25,
     "otherMinutes": 25,
     "_lengthComment": "Discourse segment ~30 min + everything else ~30-60 min. Total target = discourseMinutes + otherMinutes.",
+    "minutesPerTopic": 12,
+    "segmented": true,
     "cast": [
-      { "id": "ALEX",    "role": "animateur principal (host, pose les questions, fait les transitions)", "voice": "fr-FR-RemyMultilingualNeural" },
-      { "id": "CAMILLE", "role": "co-animatrice / analyste (réagit, contextualise, nuance)",            "voice": "fr-FR-VivienneMultilingualNeural" },
-      { "id": "JULIEN",  "role": "correspondant / expert invité (sections directes, détails techniques)", "voice": "fr-FR-HenriNeural" },
-      { "id": "SARA",    "role": "experte invitée (second avis, débat)",                                 "voice": "fr-FR-DeniseNeural" }
+      { "id": "ALEX",    "role": "animateur principal (host, pose les questions, fait les transitions)", "voices": { "edge": "fr-FR-RemyMultilingualNeural",    "xtts": "Damien Black" } },
+      { "id": "CAMILLE", "role": "co-animatrice / analyste (réagit, contextualise, nuance)",            "voices": { "edge": "fr-FR-VivienneMultilingualNeural", "xtts": "Sofia Hellen" } },
+      { "id": "JULIEN",  "role": "correspondant / expert invité (sections directes, détails techniques)", "voices": { "edge": "fr-FR-HenriNeural",             "xtts": "Viktor Menelaos" } },
+      { "id": "SARA",    "role": "experte invitée (second avis, débat)",                                 "voices": { "edge": "fr-FR-DeniseNeural",            "xtts": "Alison Dietlinde" } }
     ],
     "tts": {
-      "provider": "edge",
-      "_providerComment": "edge = free neural FR voices (Microsoft, no key). elevenlabs = premium (paid).",
+      "provider": "xtts",
+      "_providerComment": "xtts = local Coqui XTTS-v2 (free, GPU, high quality, multi-voice). edge = free Microsoft. elevenlabs = paid premium.",
+      "xttsPython": "~/.veille-tts/bin/python",
+      "xttsDevice": "cuda",
+      "xttsLanguage": "fr",
       "edgeVoice": "fr-FR-HenriNeural",
       "modelId": "eleven_flash_v2_5",
       "voiceId": "JBFqnCBsd6RMkjVDRZzb",

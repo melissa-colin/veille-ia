@@ -3,10 +3,11 @@
 import { writeFileSync, mkdirSync, rmSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { makeBrain } from "./lib/brain.mjs";
+import { makeBrain, engineConcurrency } from "./lib/brain.mjs";
+import { PIPELINE_DIR, expandHome } from "./lib/config.mjs";
 import { logger } from "./lib/log.mjs";
 import { sh, which, writeText, mapLimit } from "./lib/util.mjs";
-import { podcastSystem, podcastPrompt } from "./prompts.mjs";
+import { podcastSystem, podcastPrompt, podcastIntroPrompt, podcastSegmentPrompt, podcastOutroPrompt } from "./prompts.mjs";
 
 const log = logger("podcast");
 const TTS_URL = (voiceId, fmt) => `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=${fmt}`;
@@ -21,32 +22,86 @@ function modelDisplayName(id = "") {
   return "le modèle d'IA";
 }
 
+// Split the verified brief into one chunk per topic (renderTechDoc separates
+// sections with a line that is exactly "---"). Drops the header chunk.
+export function splitBriefIntoTopics(brief) {
+  return brief
+    .split(/\n-{3,}\n/)
+    .map((c) => c.trim())
+    .filter((c) => /^##\s/m.test(c)) // only chunks that contain a section heading
+    .map((text) => ({ title: (text.match(/^##\s+(.+)$/m) || [, "Sujet"])[1].trim(), text }));
+}
+
 export async function writeScript({ cfg, date, brief, client }) {
   const ai = client || makeBrain(cfg);
   const cast = cfg.podcast.cast || [{ id: "ALEX", role: "host", voice: cfg.podcast.tts.edgeVoice }];
   const modelName = modelDisplayName(cfg.podcast.model);
+  const topics = cfg.podcast.segmented === false ? [] : splitBriefIntoTopics(brief);
+
+  let title, body;
+  if (topics.length) {
+    ({ title, body } = await generateSegmented({ ai, cfg, date, cast, modelName, topics }));
+  } else {
+    ({ title, body } = await generateSingle({ ai, cfg, date, cast, modelName, brief }));
+  }
+
+  // Guarantee the AI-disclaimer is the very first thing spoken.
+  const hostId = cast[0]?.id || "ALEX";
+  body = `${hostId}: ${DISCLAIMER}\n${body.trim()}`;
+  log.ok(`script written (~${Math.round(body.split(/\s+/).length / 150)} min, ${body.length} chars, ${topics.length || 1} segment(s))`);
+  return { title, script: body };
+}
+
+// One deep dialogue segment per topic + intro + outro (reliable for multi-hour).
+async function generateSegmented({ ai, cfg, date, cast, modelName, topics }) {
+  const sys = podcastSystem({ cast, modelName });
+  const minutes = cfg.podcast.minutesPerTopic || 12;
+  const titles = topics.map((t) => t.title);
+
+  const intro = await ai.chat({ system: sys, messages: [{ role: "user", content: podcastIntroPrompt({ date, titles, cast }) }], model: cfg.podcast.model, maxTokens: 4000, temperature: 0.6 });
+  const tm = intro.text.match(/^TITRE:\s*(.+)$/m);
+  const title = tm ? tm[1].trim() : `Veille IA — ${date}`;
+  const introBody = intro.text.replace(/^TITRE:.*$/m, "").trim();
+
+  log.info(`generating ${topics.length} deep segment(s) (~${minutes} min each)…`);
+  const segs = await mapLimit(topics, engineConcurrency(cfg), async (t, i) => {
+    try {
+      const r = await ai.chat({ system: sys, messages: [{ role: "user", content: podcastSegmentPrompt({ date, topicText: t.text, cast, minutes }) }], model: cfg.podcast.model, maxTokens: 8000, temperature: 0.6 });
+      log.step(`  segment ${i + 1}/${topics.length} ✓`);
+      return r.text.replace(/^TITRE:.*$/m, "").trim();
+    } catch (e) {
+      log.warn(`segment ${i + 1} failed: ${e.message}`);
+      return "";
+    }
+  });
+
+  const outro = await ai.chat({ system: sys, messages: [{ role: "user", content: podcastOutroPrompt({ date, titles, cast }) }], model: cfg.podcast.model, maxTokens: 3000, temperature: 0.6 });
+  const body = [introBody, ...segs.filter(Boolean), outro.text.replace(/^TITRE:.*$/m, "").trim()].join("\n\n");
+  return { title, body };
+}
+
+async function generateSingle({ ai, cfg, date, cast, modelName, brief }) {
   const { text } = await ai.chat({
     system: podcastSystem({ cast, modelName }),
-    messages: [{ role: "user", content: podcastPrompt({ date, brief, discourseMinutes: cfg.podcast.discourseMinutes || 30, otherMinutes: cfg.podcast.otherMinutes || 40, cast }) }],
+    messages: [{ role: "user", content: podcastPrompt({ date, brief, discourseMinutes: cfg.podcast.discourseMinutes || 25, otherMinutes: cfg.podcast.otherMinutes || 25, cast }) }],
     model: cfg.podcast.model,
     maxTokens: 32000,
     temperature: 0.6,
   });
   const m = text.match(/^TITRE:\s*(.+)$/m);
-  const title = m ? m[1].trim() : `Veille IA — ${date}`;
-  let body = text.replace(/^TITRE:.*$/m, "").trim();
-  // Guarantee the disclaimer is the first thing spoken by the host.
-  const hostId = cast[0]?.id || "ALEX";
-  body = `${hostId}: ${DISCLAIMER}\n${body}`;
-  log.ok(`script written (~${Math.round(body.split(/\s+/).length / 150)} min, ${body.length} chars)`);
-  return { title, script: body, full: text };
+  return { title: m ? m[1].trim() : `Veille IA — ${date}`, body: text.replace(/^TITRE:.*$/m, "").trim() };
+}
+
+// Map each cast speaker id to its voice for a given provider ("edge"|"xtts").
+export function voiceMapFor(cast, provider) {
+  const m = {};
+  for (const c of cast) m[c.id.toUpperCase()] = c.voices?.[provider] || c.voice;
+  return m;
 }
 
 // Parse "SPEAKER: text" lines into voiced turns; merge consecutive same-speaker
 // lines; lines with no speaker prefix attach to the previous turn.
-export function parseTurns(scriptText, cast) {
-  const byId = Object.fromEntries(cast.map((c) => [c.id.toUpperCase(), c.voice]));
-  const fallback = cast[0]?.voice;
+export function parseTurns(scriptText, byId, fallback) {
   const turns = [];
   for (const rawLine of scriptText.split("\n")) {
     const line = rawLine.trim();
@@ -92,8 +147,10 @@ export function chunkScript(text, maxChars) {
 export async function synthesize({ cfg, scriptText, outPath }) {
   const t = cfg.podcast.tts;
   const cast = cfg.podcast.cast || [];
+  const provider = t.provider || "elevenlabs";
   const hasTurns = cast.length > 1 && /^[A-ZÀ-Ÿ][A-ZÀ-Ÿ_ '-]{1,18}:\s/m.test(scriptText);
-  if ((t.provider || "elevenlabs") === "edge") {
+  if (provider === "xtts") return synthesizeXTTS({ cfg, scriptText, outPath, cast });
+  if (provider === "edge") {
     return hasTurns ? synthesizeEdgeMulti({ cfg, scriptText, outPath, cast }) : synthesizeEdge({ cfg, scriptText, outPath });
   }
   if (!cfg.secrets.elevenlabs) {
@@ -178,7 +235,7 @@ async function synthesizeEdgeMulti({ cfg, scriptText, outPath, cast }) {
     log.warn("ffmpeg not found — falling back to single-voice");
     return synthesizeEdge({ cfg, scriptText, outPath });
   }
-  const turns = parseTurns(scriptText, cast);
+  const turns = parseTurns(scriptText, voiceMapFor(cast, "edge"), cast[0]?.voices?.edge);
   if (!turns.length) return synthesizeEdge({ cfg, scriptText, outPath });
   const work = join(tmpdir(), `veille-multi-${Date.now()}`);
   mkdirSync(work, { recursive: true });
@@ -216,6 +273,53 @@ async function synthesizeEdgeMulti({ cfg, scriptText, outPath, cast }) {
     const durationSec = await probeDuration(outPath);
     log.ok(`podcast.mp3 written (multi-voice, ${durationSec ? Math.round(durationSec / 60) + " min" : "?"}, ${ok}/${turns.length} turns)`);
     return { ok: true, durationSec, turns: turns.length, provider: "edge-multi" };
+  } finally {
+    rmSync(work, { recursive: true, force: true });
+  }
+}
+
+// Local Coqui XTTS-v2 multi-voice (free, GPU). One Python process loads the
+// model once and renders every turn with its speaker's voice; we concat to mp3.
+async function synthesizeXTTS({ cfg, scriptText, outPath, cast }) {
+  const t = cfg.podcast.tts;
+  if (!(await which("ffmpeg"))) return { ok: false, durationSec: null, reason: "no-ffmpeg" };
+  const py = expandHome(t.xttsPython || "python3");
+  const turns = parseTurns(scriptText, voiceMapFor(cast, "xtts"), cast[0]?.voices?.xtts);
+  if (!turns.length) return { ok: false, durationSec: null, reason: "no-turns" };
+
+  const work = join(tmpdir(), `veille-xtts-${Date.now()}`);
+  mkdirSync(work, { recursive: true });
+  const turnsJson = join(work, "turns.json");
+  writeFileSync(turnsJson, JSON.stringify(turns.map((x, i) => ({ i, voice: x.voice, text: x.text }))));
+  log.info(`XTTS: ${turns.length} turn(s), ${new Set(turns.map((x) => x.voice)).size} voice(s), device=${t.xttsDevice}`);
+
+  try {
+    const script = join(PIPELINE_DIR, "tts", "xtts_synth.py");
+    const r = await sh(py, [script, "--turns", turnsJson, "--outdir", work, "--device", t.xttsDevice || "cuda", "--language", t.xttsLanguage || "fr"], { env: { COQUI_TOS_AGREED: "1" } });
+    const done = (r.stdout.match(/^DONE /gm) || []).length;
+    if (r.code !== 0 && done === 0) {
+      log.warn(`XTTS failed: ${r.stderr.slice(-200) || r.stdout.slice(-200)}`);
+      return { ok: false, durationSec: null, reason: "xtts-failed" };
+    }
+    if (/DEVICE cpu/.test(r.stdout)) log.warn("XTTS ran on CPU (slower)");
+
+    // Silence spacer + ordered concat (re-encode to normalize).
+    const silence = join(work, "sil.wav");
+    await sh("ffmpeg", ["-y", "-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono", "-t", "0.3", silence]);
+    const list = [];
+    for (let i = 0; i < turns.length; i++) {
+      const f = join(work, `turn_${String(i).padStart(4, "0")}.wav`);
+      if (existsSync(f)) { list.push(`file '${f}'`); list.push(`file '${silence}'`); }
+    }
+    if (!list.length) return { ok: false, durationSec: null, reason: "no-wavs" };
+    const listPath = join(work, "list.txt");
+    writeFileSync(listPath, list.join("\n"));
+    const cc = await sh("ffmpeg", ["-y", "-f", "concat", "-safe", "0", "-i", listPath, "-c:a", "libmp3lame", "-b:a", "128k", outPath]);
+    if (cc.code !== 0 || !existsSync(outPath)) throw new Error(`ffmpeg concat failed: ${cc.stderr.slice(-200)}`);
+
+    const durationSec = await probeDuration(outPath);
+    log.ok(`podcast.mp3 written (XTTS multi-voice, ${durationSec ? Math.round(durationSec / 60) + " min" : "?"}, ${done}/${turns.length} turns)`);
+    return { ok: true, durationSec, turns: turns.length, provider: "xtts" };
   } finally {
     rmSync(work, { recursive: true, force: true });
   }

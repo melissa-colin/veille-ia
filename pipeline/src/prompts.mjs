@@ -183,6 +183,39 @@ export function podcastPrompt({ date, brief, discourseMinutes, otherMinutes, cas
   ].join("\n");
 }
 
+// ---- Stage E (segmented): intro / per-topic / outro ----------------------
+export function podcastIntroPrompt({ date, titles, cast }) {
+  return [
+    TODAY(date),
+    `Write ONLY the OPENING of the show as a dialogue between ${cast.map((c) => c.id).join(", ")} (~2-3 minutes).`,
+    "It MUST contain, in order: (1) a punchy cold-open hook; (2) a quick run-of-show previewing today's topics. (A fixed AI-disclaimer is prepended separately — do NOT write one.)",
+    "Today's topics (titles):",
+    titles.map((t, i) => `${i + 1}. ${t}`).join("\n"),
+    "Return PLAIN TEXT, one `SPEAKER: text` line per turn. First line must be `TITRE: <titre de l'épisode>`. Do NOT cover the topics in depth here — that comes later.",
+  ].join("\n");
+}
+
+export function podcastSegmentPrompt({ date, topicText, cast, minutes }) {
+  return [
+    TODAY(date),
+    `Write ONE in-depth SEGMENT (~${minutes} minutes, ~${Math.round(minutes * 150)} words) as a dialogue between ${cast.map((c) => c.id).join(", ")}, covering the single topic below.`,
+    "Teach it in layers like a great course: (1) host introduces it stating its DATE and SOURCE out loud; (2) plain-language hook/analogy; (3) the core mechanism; (4) progressively deeper technical detail (architecture, math, training/inference, benchmarks, trade-offs); (5) why it matters + open questions. Real back-and-forth: questions, reactions, a respectful disagreement. Flag any inferred opinion explicitly.",
+    "Return PLAIN TEXT, one `SPEAKER: text` line per turn. No TITRE line, no markdown, no URLs. Start with the host transitioning INTO this topic.",
+    "",
+    "TOPIC (from the verified brief):",
+    topicText,
+  ].join("\n");
+}
+
+export function podcastOutroPrompt({ date, titles, cast }) {
+  return [
+    TODAY(date),
+    `Write ONLY the CLOSING of the show (~1-2 minutes) as a dialogue between ${cast.map((c) => c.id).join(", ")}.`,
+    "Briefly recap the through-line, say what to watch next, remind listeners to verify sources online, and sign off warmly.",
+    "Return PLAIN TEXT, one `SPEAKER: text` line per turn. No TITRE line.",
+  ].join("\n");
+}
+
 // ---- Stage F: LinkedIn post + carousel -----------------------------------
 export function linkedinSystem() {
   return [
